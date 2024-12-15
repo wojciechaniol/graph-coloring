@@ -122,7 +122,7 @@ bool Graph::is_clique()
                 continue;
             }
 
-            if (adjacency_matrix[i][j] != 1) 
+            if (adjacency_matrix[i][j] == 0) 
             {
                 return false;
             }
