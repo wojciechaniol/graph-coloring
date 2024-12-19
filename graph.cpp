@@ -1,5 +1,8 @@
 #include "graph.hpp"
 
+random_device rd;
+mt19937 engine(rd());
+
 bool compare(int a[2], int b[2])
 {
     return a[1] > b[1];
@@ -8,14 +11,11 @@ bool compare(int a[2], int b[2])
 Graph::Graph(int n)
 {
     adjacency_matrix = new int* [n];
-    sequence_array = new int* [n];
     vertices = n;
 
     for (int i = 0; i < n; i++)
     {
         adjacency_matrix[i] = new int[n];
-        sequence_array[i] = new int[1];
-        sequence_array[i][0] = 0; //vertex degree
 
         for (int j = 0; j < n; j++)
         {
@@ -24,7 +24,7 @@ Graph::Graph(int n)
     }
 }
 
-Graph::Graph* clone() 
+Graph* Graph::clone() 
 {
     Graph* newGraph = new Graph(vertices);
 
@@ -48,24 +48,35 @@ void Graph::generate_graph(double saturation)
     }
 
     int random_int_array[vertices];
-    int size;
     
     for (int i = 0; i < vertices; i++)
     {
         random_int_array[i] = i;
     }
 
-    size = sizeof(random_int_array)/sizeof(random_int_array[0]);
-
     for (int i = 0; i < vertices; i++)
     {
-        shuffle(random_int_array, random_int_array+size, engine);
+        shuffle(random_int_array, random_int_array+vertices, engine);
+        int j = 0;
+        int cnt = 0;
 
-        for (int j = 0; j < (int)(saturation*vertices); j++)
+        while (cnt < (int)(saturation*vertices))
         {
             if (random_int_array[j] != i)
             {
-                this->add_edge(i, random_int_array[j]);
+                if (adjacency_matrix[i][random_int_array[j]] != 1 && random_int_array[j] > i)
+                {
+                    this->add_edge(i, random_int_array[j]);
+                }
+
+                cnt++;
+            }
+
+            j++;
+
+            if (j == vertices)
+            {
+                j = 0;
             }
         } 
     }
@@ -73,8 +84,6 @@ void Graph::generate_graph(double saturation)
 
 void Graph::check_bridges()
 {
-    /*lets assert that bridge exists only at the distance of two vertices*/
-
     for (int i = 0; i < vertices; i++)
     {
         for (int j = 0; j < vertices; j++)
@@ -150,35 +159,8 @@ void Graph::merge_vertices(int u, int v)
     }
 } 
 
-void Graph::add_edge(int u, int v, bool sequence=true)
+void Graph::add_edge(int u, int v)
 {
-    if (sequence)
-    {
-        int* sequence_u= new int[sequence_array[u][0]+2];
-        int* sequence_v = new int[sequence_array[v][0]+2];
-
-        for (int i = 0; i < sequence_array[u][0]+1; i++)
-        {
-            sequence_u[i] = sequence_array[u][i];
-        }
-
-        for (int i = 0; i < sequence_array[v][0]+1; i++)
-        {
-            sequence_v[i] = sequence_array[v][i];
-        }
-
-        sequence_u[0]++;
-        sequence_v[0]++;
-        delete[] sequence_array[u];
-        delete[] sequence_array[v];
-
-        sequence_u[sequence_u[0]] = v;
-        sequence_v[sequence_v[0]] = u;
-
-        sequence_array[u] = sequence_u;
-        sequence_array[v] = sequence_v;
-    }
-
     adjacency_matrix[u][v] = 1;
     adjacency_matrix[v][u] = 1;
 }
@@ -199,18 +181,6 @@ void Graph::printing()
             printf("| %d ", adjacency_matrix[i][j]);
         }
         printf("|\n");
-    }
-
-    printf("Sequence array for the graph: \n");
-
-    for (int i = 0; i < vertices; i++)
-    {
-        printf("%d -> ", i);
-        for (int j = 1; j <= sequence_array[i][0]; j++)
-        {
-            printf("%d ", sequence_array[i][j]);
-        }
-        printf("\n");
     }
 }
 
@@ -242,31 +212,22 @@ void Graph::exhaustive_search()
     }
 
     while (!over)
-    {           
+    {   
         for (int i = 0; i < vertices; i++)
         {   
-            over = true; 
-            for (int j = 1; j <= sequence_array[i][0]; j++)
+            over = true;
+            for (int j = 0; j < vertices; j++)
             {
-                if (chromatic_value[i] == chromatic_value[sequence_array[i][j]])
+                if (chromatic_value[i] == chromatic_value[j] && adjacency_matrix[i][j] > 0)
                 {
-                    chromatic_value[j] = chromatic_value[i] + 1;
+                    chromatic_value[j]++;
                     over = false;
-                }
-
-                for (int k = 1; k <= sequence_array[j][0]; k++)
-                {
-                    if (chromatic_value[k] == chromatic_value[i])
-                    {
-                        chromatic_value[k] = chromatic_value[i] + 1;
-                        over = false;
-                    }
                 }
             }
         }
     }
 
-    coloring_print(chromatic_value);
+    // coloring_print(chromatic_value);
 }
 
 void Graph::greedy()
@@ -288,19 +249,11 @@ void Graph::greedy()
     {
         color = 0;
 
-        for (int j = 1; j <= sequence_array[i][0]; j++)
+        for (int j = 0; j < vertices; j++)
         {
-            if (chromatic_value[sequence_array[i][j]] != -1)
+            if (chromatic_value[j] != -1 && adjacency_matrix[i][j] > 0)
             {
-                color_availability[chromatic_value[sequence_array[i][j]]] = false;
-            }
-
-            for (int k = 1; k <= sequence_array[j][0]; k++)
-            {
-                if (chromatic_value[sequence_array[j][k]] != -1)
-                {
-                    color_availability[chromatic_value[sequence_array[j][k]] = false;
-                }
+                color_availability[chromatic_value[j]] = false;
             }
         }
 
@@ -321,7 +274,7 @@ void Graph::greedy()
         }
     }
 
-    coloring_print(chromatic_value);
+    //coloring_print(chromatic_value);
     delete[] chromatic_value;
     delete[] color_availability;
 }
@@ -343,12 +296,12 @@ void Graph::backtracking(int* colors, int node, int numColors)
 {   
     if (node == vertices)
     {
-        printf("Colors assigned to each vertex: \n");
+    //     printf("Colors assigned to each vertex: \n");
 
-        for (int i = 0; i < vertices; i++)
-        {
-            printf("vertex: %d -> color: %d\n", i, colors[i]);
-        }
+    //     for (int i = 0; i < vertices; i++)
+    //     {
+    //         printf("vertex: %d -> color: %d\n", i, colors[i]);
+    //     }
 
         return;
     }
@@ -358,13 +311,11 @@ void Graph::backtracking(int* colors, int node, int numColors)
         if (is_safe(colors, node, color))
         {
             colors[node] = color;                    
-            backtracking(colors, node + 1, numColors);
-            colors[node] = -1;
+            return backtracking(colors, node + 1, numColors);
         }
     }
 }
 
-/* in below algorithm we can add some adjustments and use sequence_array[i][0] */
 void Graph::welsh_powell()
 {
     int* vertex_degree[vertices];
@@ -383,7 +334,7 @@ void Graph::welsh_powell()
     {
         for (int j = i + 1; j < vertices; j++)
         {
-            if (adjacency_matrix[i][j] == 1)
+            if (adjacency_matrix[i][j] > 0)
             {
                 vertex_degree[i][1] += 1;
                 vertex_degree[j][1] += 1;
@@ -403,7 +354,7 @@ void Graph::welsh_powell()
             {
                 if (chromatic_value[vertex_degree[j][0]] == -1)
                 {
-                    if (is_safe(chromatic_value, j, current_color))
+                    if (is_safe(chromatic_value, vertex_degree[j][0], current_color))
                     {
                         chromatic_value[vertex_degree[j][0]] = current_color;
                     }
@@ -414,41 +365,49 @@ void Graph::welsh_powell()
         current_color++;
     }
 
-    coloring_print(chromatic_value);
+    // coloring_print(chromatic_value);
+
+    for (int i = 0; i < vertices; i++)
+    {
+        delete[] vertex_degree[i];
+    }
 }
 
 void Graph::partition(int** color_array, int available_colors)
 {
     queue<int> vertexes;
-    int front_v, numerator = 1;
+    int front_v;
     int* chromatic_value = new int [vertices];
+    int* every_node_numerator = new int [vertices];
+
     chromatic_value[0] = color_array[0][0];
 
     for (int i = 0; i < vertices; i++)
     {
-        for (int j = 1; j <= sequence_array[i][0]; j++)
-        {
-            vertexes.push(sequence_array[i][j]);
+        every_node_numerator[i] = 0;
+    }
 
-            for (int k = 1; k <= sequence_array[j][0]; k++)
+    for (int i = 0; i < vertices; i++)
+    {
+        for (int j = 0; j < vertices; j++)
+        {
+            if (adjacency_matrix[i][j] > 0)
             {
-                vertex.push(sequence_array[j][k]);
+                vertexes.push(j);
             }
         }
 
         while (!vertexes.empty())
         {
-            numerator = 1;
             front_v = vertexes.front();
-            chromatic_value[front_v] = color_array[front_v][0];
 
-            while (chromatic_value[front_v] == chromatic_value[i] && numerator < available_colors)
+            while (chromatic_value[front_v] == chromatic_value[i] && every_node_numerator[front_v] < available_colors)
             {
-                chromatic_value[front_v] = color_array[front_v][numerator];
-                numerator++;
+                chromatic_value[front_v] = color_array[front_v][every_node_numerator[front_v]];
+                every_node_numerator[front_v]++;
             }
 
-            if (numerator == available_colors)
+            if (every_node_numerator[front_v] > available_colors)
             {
                 printf("not able to do this coloring, too few colors available\n");
                 return;
@@ -459,6 +418,9 @@ void Graph::partition(int** color_array, int available_colors)
     }
 
     coloring_print(chromatic_value);
+
+    delete[] chromatic_value;
+    delete[] every_node_numerator;
 }
 
 void Graph::palette_restriciton(int available_colors)
@@ -479,13 +441,19 @@ void Graph::palette_restriciton(int available_colors)
     }
 
     partition(vertex_colors, available_colors);
+
+    for (int i = 0; i < vertices; i++)
+    {
+        delete[] vertex_colors[i];
+    }
+    delete[] vertex_colors;
 }
 
 int Graph::zykov(Graph& graph) 
 {
     if (graph.is_clique()) 
     {
-        return graph.countVertices();
+        return graph.count_vertices();
     }
 
     for (int u = 0; u < vertices; u++) 
@@ -494,6 +462,8 @@ int Graph::zykov(Graph& graph)
         {
             continue;
         }
+
+        graph.check_bridges();
 
         for (int v = u + 1; v < vertices; v++) 
         {
@@ -505,7 +475,7 @@ int Graph::zykov(Graph& graph)
             if (adjacency_matrix[u][v] == 0) 
             {
                 Graph* branch1 = graph.clone();
-                branch1->add_edge(u, v, false);
+                branch1->add_edge(u, v);
 
                 Graph* branch2 = graph.clone();
                 branch2->merge_vertices(u, v);
@@ -521,7 +491,7 @@ int Graph::zykov(Graph& graph)
     
     }
 
-    return 100000;
+    return INT_MAX;
 }
 
 int Graph::do_zykov()
@@ -529,7 +499,7 @@ int Graph::do_zykov()
     return zykov(*this);
 }
 
-int Graph::countVertices() 
+int Graph::count_vertices() 
 {
     int count = 0;
     for (int i = 0; i < vertices; i++) 
@@ -542,19 +512,15 @@ int Graph::countVertices()
     return count;
 }
 
-/*genetic algorithm*/
-/* improve degree counting */
-
 void Graph::genetic(int population_size)
 {
     int max_degree = 0, max_color;
     int degree = 0;
     int generation = 0;
-    int lowest_penalty = 0;
+    int lowest_penalty = INT_MAX;
     int* best_individual;
     int** population = new int* [population_size];
 
-    /*count degree*/
     for (int i = 0; i < vertices; i++)
     {
         for (int j = 0; j < vertices; j++)
@@ -580,51 +546,75 @@ void Graph::genetic(int population_size)
         create_individual(population[i], max_color);
     }
 
-    lowest_penalty = calculate_penalty(population[0]);
-    best_individual = population[0];
-
     while(lowest_penalty != 0 && generation < 10000)
     {
         generation++;
-        population = selection(population, population_size);
-        population_size /= 2;
-        for (int i = 0; i < population_size-1; i++)
+
+        int** new_population = selection(population, population_size);
+
+        for (int i = 0; i < population_size-1; i+=2)
         {
-            crossover(population[i], population[i+1]);
+            crossover(new_population[i], new_population[i+1]);
         }
         
         for (int i = 0; i < population_size; i++)
         {
             if (generation < 200)
             {
-                mutation(population[i], max_color, 0.3);
+                mutation(new_population[i], max_color, 0.3);
             }
             else
             {
-                mutation(population[i], max_color, 0.5);
+                mutation(new_population[i], max_color, 0.5);
             }
         }
 
-        lowest_penalty = calculate_penalty(population[0]);
-        best_individual = population[0];
-
-        for (int i = 1; i < population_size; i++)
+        for (int i = 0; i < population_size; i++)
         {
-            if (calculate_penalty(population[i]) < lowest_penalty)
+            delete[] population[i];
+            population[i] = new int [vertices];
+            copy(new_population[i], new_population[i]+vertices, population[i]);
+        }
+
+        for (int i = 0; i < population_size; i++)
+        {
+            int penalty = calculate_penalty(population[i]);
+            if (penalty < lowest_penalty)
             {
-                lowest_penalty = calculate_penalty(population[i]);
+                lowest_penalty = penalty;
                 best_individual = population[i];
             }
         }
 
-        printf("generation: %d best fittnes: %d\n", generation, lowest_penalty);
-        printf("Best individual: \n");
+        // if (generation%10 == 0)
+        // {
+        //     printf("generation: %d best fittnes: %d\n", generation, lowest_penalty);
+        //     printf("Best individual: \n");
 
-        for (int i = 0; i < vertices; i++)
-        {
-            printf("%d ", best_individual[i]);
-        }
+        //     for (int i = 0; i < vertices; i++)
+        //     {
+        //         printf("%d ", best_individual[i]);
+        //     }
+
+        //     printf("\n"); 
+        // }
+
+        // if (lowest_penalty == 0)
+        // {
+        //     printf("generation: %d best fittnes: %d\n", generation, lowest_penalty);
+        //     printf("Best individual: \n");
+
+        //     for (int i = 0; i < vertices; i++)
+        //     {
+        //         printf("%d ", best_individual[i]);
+        //     }
+
+        //     printf("\n"); 
+        // }
     }
+    
+    delete[] population;
+    delete[] best_individual;
 }
 
 void Graph::create_individual(int* colors, int max_color)
@@ -661,14 +651,16 @@ void Graph::crossover(int* parent_1, int* parent_2)
 {
     uniform_int_distribution<int> int_rand(2, vertices-3);
     int index = int_rand(engine);
-    int aux_parent[vertices - index], cnt = 0;
+    int cnt = 0;
 
     for (int i = index; i < vertices; i++)
     {
-        aux_parent[cnt] = parent_1[i];
         parent_1[i] = parent_2[i];
-        parent_2[i] = aux_parent[cnt];
-        cnt++;
+        if (cnt < index)
+        {
+            parent_2[cnt] = parent_1[cnt];
+            cnt++;
+        }
     }
 }
 
@@ -688,54 +680,27 @@ void Graph::mutation(int* individual, int max_color, double probability)
 
 int** Graph::selection(int** population, int population_size)
 {
-    int** new_population = new int*[population_size/2];
-    int size = sizeof(population) / sizeof(population[0]);
+    uniform_int_distribution<int> int_rand(0, population_size-1);
+    int** new_population = new int*[population_size];
+    int first_individual, second_individual;
 
-    shuffle(population, population + size, engine);
+    shuffle(population, population + population_size, engine);
 
-    for (int i = 0; i < population_size-1; i+=2)
+    for (int i = 0; i < population_size; i++)
     {
-        if (calculate_penalty(population[i]) > calculate_penalty(population[i+1]))
+        new_population[i] = new int[vertices];
+        first_individual = int_rand(engine);
+        second_individual = int_rand(engine);
+
+        if (calculate_penalty(population[first_individual]) > calculate_penalty(population[second_individual]))
         {
-            new_population[i/2] = population[i+1];
+            copy(population[second_individual], population[second_individual] + vertices, new_population[i]);
         }
         else
         {
-            new_population[i/2] = population[i];
+            copy(population[first_individual], population[first_individual] + vertices, new_population[i]);
         }
     }
 
     return new_population;
-}
-
-int main()
-{   
-    int n = 10;
-    int* colors = new int[n];
-
-    for (int i = 0; i < n; i++)
-    {
-        colors[i] = -1;
-    }
-
-    Graph g(n);
-
-    g.generate_graph(0.4);
-
-    /*
-    g.printing();
-    g.exhaustive_search();
-    g.greedy();
-    g.palette_restriciton(3);
-    //printf("%d\n", g.do_zykov());
-    //g.backtracking(colors, 0, 3);
-    g.welsh_powell();
-    g.genetic(20);
-    */
-    g.check_bridges();
-    g.printing();
-
-    delete[] colors;
-
-    return 0;
 }
